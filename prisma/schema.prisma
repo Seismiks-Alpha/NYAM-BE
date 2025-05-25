@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  displayName String
+  email       String   @unique
+  password    String?
+  firebaseUid String?  @unique
+  photoUrl    String?  // ✅ harus ada ini
+  profile     Profile?
+  histories   FoodHistory[]
+}
+
+
+model Profile {
+  id       String   @id @default(cuid())
+  user     User     @relation(fields: [userId], references: [id])
+  userId   String   @unique
+  gender   String
+  age      Int
+  height   Float
+  weight   Float
+}
+
+model Food {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  calories       Float    // per 100g
+  protein        Float
+  fat            Float
+  carbohydrates  Float
+  histories      FoodHistory[]
+}
+
+model FoodHistory {
+  id       String   @id @default(cuid())
+  user     User     @relation(fields: [userId], references: [id])
+  userId   String
+  food     Food     @relation(fields: [foodId], references: [id])
+  foodId   String
+  date     DateTime
+  grams    Float
+}
