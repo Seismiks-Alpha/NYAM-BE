@@ -1,5 +1,5 @@
 export function detectIntent(question) {
-  const text = question.toLowerCase()
+  const text = question.toLowerCase();
   const userKeywords = [
     'saya',
     'berat saya',
@@ -13,7 +13,7 @@ export function detectIntent(question) {
     'tinggi badan saya',
     'kamu tau berat badan',
     'kamu tahu berat badan',
-    'tahu berat saya'
-  ]
-  return userKeywords.some(w => text.includes(w)) ? 'personal' : 'general'
+    'tahu berat saya',
+  ];
+  return userKeywords.some((w) => text.includes(w)) ? 'personal' : 'general';
 }

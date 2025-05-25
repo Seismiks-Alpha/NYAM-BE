@@ -1,70 +1,71 @@
 // ✅ 4. user.controller.js
-import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient()
-
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 
 export const getProfile = async (req, res) => {
-  const firebaseUid = req.params.id
+  const firebaseUid = req.params.id;
 
   // Pastikan user hanya akses datanya sendiri
   if (firebaseUid !== req.user.firebaseUid) {
-    return res.status(403).json({ error: 'Tidak diizinkan melihat data user lain' })
+    return res
+      .status(403)
+      .json({ error: 'Tidak diizinkan melihat data user lain' });
   }
 
   try {
     const user = await prisma.user.findUnique({
       where: { firebaseUid },
-      include: { profile: true }
-    })
+      include: { profile: true },
+    });
 
     if (!user || !user.profile) {
-      return res.status(404).json({ error: 'Profil tidak ditemukan' })
+      return res.status(404).json({ error: 'Profil tidak ditemukan' });
     }
 
     res.json({
       email: user.email,
       displayName: user.displayName,
-      profile: user.profile
-    })
+      profile: user.profile,
+    });
   } catch (err) {
-    console.error('❌ Gagal ambil profil:', err)
-    res.status(500).json({ error: 'Terjadi kesalahan server' })
+    console.error('❌ Gagal ambil profil:', err);
+    res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
-}
+};
 
 export const getOwnProfile = async (req, res) => {
-  const firebaseUid = req.user.firebaseUid
+  const firebaseUid = req.user.firebaseUid;
 
   try {
     const user = await prisma.user.findUnique({
       where: { firebaseUid },
-      include: { profile: true }
-    })
+      include: { profile: true },
+    });
 
     if (!user || !user.profile) {
-      return res.status(404).json({ error: 'Profil tidak ditemukan' })
+      return res.status(404).json({ error: 'Profil tidak ditemukan' });
     }
 
     res.json({
       email: user.email,
       displayName: user.displayName,
-      photoUrl: user.photoUrl, 
-      profile: user.profile
-    })
+      photoUrl: user.photoUrl,
+      profile: user.profile,
+    });
   } catch (err) {
-    console.error('❌ Gagal ambil profil:', err)
-    res.status(500).json({ error: 'Terjadi kesalahan server' })
+    console.error('❌ Gagal ambil profil:', err);
+    res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
-}
+};
 
 export const syncUser = async (req, res) => {
-  const { firebaseUid, email, name, photoUrl } = req.user // diambil dari middleware
+  const { firebaseUid, email, name, photoUrl } = req.user; // diambil dari middleware
 
   try {
     let user = await prisma.user.findUnique({
       where: { firebaseUid },
-      include: { profile: true }
-    })
+      include: { profile: true },
+    });
 
     if (!user) {
       // 🔰 Pertama kali login
@@ -79,24 +80,24 @@ export const syncUser = async (req, res) => {
               weight: 60,
               height: 170,
               age: 21,
-              gender: 'unknown'
-            }
-          }
+              gender: 'unknown',
+            },
+          },
         },
-        include: { profile: true }
-      })
+        include: { profile: true },
+      });
     } else {
       // 🔁 Sudah ada, update foto profil saja
       await prisma.user.update({
         where: { firebaseUid },
-        data: { photoUrl: photoUrl || null }
-      })
+        data: { photoUrl: photoUrl || null },
+      });
     }
 
     const updatedUser = await prisma.user.findUnique({
       where: { firebaseUid },
-      include: { profile: true }
-    })
+      include: { profile: true },
+    });
 
     res.json({
       message: '✅ User disinkronkan & foto profil diperbarui',
@@ -105,41 +106,39 @@ export const syncUser = async (req, res) => {
         email: updatedUser.email,
         displayName: updatedUser.displayName,
         photoUrl: updatedUser.photoUrl,
-        profile: updatedUser.profile
-      }
-    })
-
+        profile: updatedUser.profile,
+      },
+    });
   } catch (err) {
-    console.error('❌ Gagal sync user:', err)
-    res.status(500).json({ error: 'Gagal menyinkronkan user' })
+    console.error('❌ Gagal sync user:', err);
+    res.status(500).json({ error: 'Gagal menyinkronkan user' });
   }
-}
-
+};
 
 export const updateOwnProfile = async (req, res) => {
-  const firebaseUid = req.user.firebaseUid
-  const { age, weight, height, gender } = req.body
+  const firebaseUid = req.user.firebaseUid;
+  const { age, weight, height, gender } = req.body;
 
   try {
     const user = await prisma.user.findUnique({
-      where: { firebaseUid }
-    })
+      where: { firebaseUid },
+    });
 
     if (!user) {
-      return res.status(404).json({ error: 'User tidak ditemukan' })
+      return res.status(404).json({ error: 'User tidak ditemukan' });
     }
 
     const updatedProfile = await prisma.profile.update({
       where: { userId: user.id },
-      data: { age, weight, height, gender }
-    })
+      data: { age, weight, height, gender },
+    });
 
     res.json({
       message: '✅ Profil berhasil diperbarui',
-      profile: updatedProfile
-    })
+      profile: updatedProfile,
+    });
   } catch (err) {
-    console.error('❌ Gagal update profil:', err)
-    res.status(500).json({ error: 'Gagal memperbarui profil' })
+    console.error('❌ Gagal update profil:', err);
+    res.status(500).json({ error: 'Gagal memperbarui profil' });
   }
-}
+};
