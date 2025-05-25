@@ -22,7 +22,7 @@ export const authenticate = async (req, res, next) => {
     })
 
     if (!user) {
-      // Jika user belum ada → buat user + profil
+      // ✅ Jika user belum ada → buat user + profil
       user = await prisma.user.create({
         data: {
           email,
@@ -40,30 +40,39 @@ export const authenticate = async (req, res, next) => {
         },
         include: { profile: true }
       })
-    } else if (!user.profile) {
-      // Jika user ada tapi belum punya profil → buat profil
-      const createdProfile = await prisma.profile.create({
+    } else {
+      // ✅ Jika user sudah ada → update photoUrl dari Google/Firebase
+      user = await prisma.user.update({
+        where: { id: user.id },
         data: {
-          userId: user.id,
-          weight: 60,
-          height: 170,
-          age: 21,
-          gender: 'unknown'
-        }
+          photoUrl: picture || user.photoUrl
+        },
+        include: { profile: true }
       })
 
-      user.profile = createdProfile // tambahkan ke objek user
+      // ✅ Jika user belum punya profil → buat profil default
+      if (!user.profile) {
+        const createdProfile = await prisma.profile.create({
+          data: {
+            userId: user.id,
+            weight: 60,
+            height: 170,
+            age: 21,
+            gender: 'unknown'
+          }
+        })
+
+        user.profile = createdProfile
+      }
     }
 
-    // Simpan user info ke request
+    // ✅ Simpan user info ke request untuk controller
     req.user = {
-  id: user.id,
-  firebaseUid: uid,
-  name: user.displayName,
-  photoUrl: user.photoUrl
-}
-
-
+      id: user.id,
+      firebaseUid: uid,
+      name: user.displayName,
+      photoUrl: user.photoUrl
+    }
 
     next()
   } catch (err) {
