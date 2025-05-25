@@ -4,15 +4,21 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepretty": "prettier --write .",
+    "predev": "npm run prepretty",
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "prestart": "npm run prepretty",
+    "start": "node src/index.js",
+    "pretest": "npm run prepretty",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "npm run prepretty"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.8.2",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
@@ -22,5 +28,8 @@
     "fr-backend": "file:",
     "multer": "^2.0.0",
     "prisma": "^6.8.2"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3"
   }
 }

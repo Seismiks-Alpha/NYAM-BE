@@ -1,25 +1,25 @@
 // ✅ Middleware untuk verifikasi token Firebase & auto-buat user
-import admin from '../firebase.js'
-import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient()
+import admin from '../firebase.js';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 
 export const authenticate = async (req, res, next) => {
-  const authHeader = req.headers.authorization
+  const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token tidak ditemukan' })
+    return res.status(401).json({ error: 'Token tidak ditemukan' });
   }
 
-  const idToken = authHeader.split(' ')[1]
+  const idToken = authHeader.split(' ')[1];
 
   try {
-    const decoded = await admin.auth().verifyIdToken(idToken)
-    const { uid, email, name, picture } = decoded // picture = photoURL
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const { uid, email, name, picture } = decoded; // picture = photoURL
 
     let user = await prisma.user.findUnique({
       where: { firebaseUid: uid },
-      include: { profile: true }
-    })
+      include: { profile: true },
+    });
 
     if (!user) {
       // ✅ Jika user belum ada → buat user + profil
@@ -34,21 +34,21 @@ export const authenticate = async (req, res, next) => {
               weight: 60,
               height: 170,
               age: 21,
-              gender: 'unknown'
-            }
-          }
+              gender: 'unknown',
+            },
+          },
         },
-        include: { profile: true }
-      })
+        include: { profile: true },
+      });
     } else {
       // ✅ Jika user sudah ada → update photoUrl dari Google/Firebase
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
-          photoUrl: picture || user.photoUrl
+          photoUrl: picture || user.photoUrl,
         },
-        include: { profile: true }
-      })
+        include: { profile: true },
+      });
 
       // ✅ Jika user belum punya profil → buat profil default
       if (!user.profile) {
@@ -58,11 +58,11 @@ export const authenticate = async (req, res, next) => {
             weight: 60,
             height: 170,
             age: 21,
-            gender: 'unknown'
-          }
-        })
+            gender: 'unknown',
+          },
+        });
 
-        user.profile = createdProfile
+        user.profile = createdProfile;
       }
     }
 
@@ -71,12 +71,12 @@ export const authenticate = async (req, res, next) => {
       id: user.id,
       firebaseUid: uid,
       name: user.displayName,
-      photoUrl: user.photoUrl
-    }
+      photoUrl: user.photoUrl,
+    };
 
-    next()
+    next();
   } catch (err) {
-    console.error('❌ Token Firebase tidak valid:', err.message)
-    return res.status(401).json({ error: 'Token tidak valid' })
+    console.error('❌ Token Firebase tidak valid:', err.message);
+    return res.status(401).json({ error: 'Token tidak valid' });
   }
-}
+};
