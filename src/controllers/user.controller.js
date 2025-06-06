@@ -1,11 +1,9 @@
-// ✅ 4. user.controller.js
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export const getProfile = async (req, res) => {
   const firebaseUid = req.params.id;
 
-  // Pastikan user hanya akses datanya sendiri
   if (firebaseUid !== req.user.firebaseUid) {
     return res
       .status(403)
@@ -59,7 +57,7 @@ export const getOwnProfile = async (req, res) => {
 };
 
 export const syncUser = async (req, res) => {
-  const { firebaseUid, email, name, photoUrl } = req.user; // diambil dari middleware
+  const { firebaseUid, email, name, photoUrl } = req.user;
 
   try {
     let user = await prisma.user.findUnique({
@@ -68,7 +66,15 @@ export const syncUser = async (req, res) => {
     });
 
     if (!user) {
-      // 🔰 Pertama kali login
+      // First time login
+      const defaultWeight = 60;
+      const defaultHeight = 170;
+      const defaultAge = 21;
+
+      const heightInMeters = defaultHeight / 100;
+      const bmi = defaultWeight / (heightInMeters * heightInMeters);
+      const recommendedCalories = Math.round(24 * defaultWeight * 1.55); // moderat aktif
+
       user = await prisma.user.create({
         data: {
           firebaseUid,
@@ -77,17 +83,18 @@ export const syncUser = async (req, res) => {
           photoUrl: photoUrl || null,
           profile: {
             create: {
-              weight: 60,
-              height: 170,
-              age: 21,
+              weight: defaultWeight,
+              height: defaultHeight,
+              age: defaultAge,
               gender: 'unknown',
+              recommendedCalories,
+              customCalories: recommendedCalories,
             },
           },
         },
         include: { profile: true },
       });
     } else {
-      // 🔁 Sudah ada, update foto profil saja
       await prisma.user.update({
         where: { firebaseUid },
         data: { photoUrl: photoUrl || null },
@@ -106,7 +113,11 @@ export const syncUser = async (req, res) => {
         email: updatedUser.email,
         displayName: updatedUser.displayName,
         photoUrl: updatedUser.photoUrl,
-        profile: updatedUser.profile,
+        profile: {
+          ...updatedUser.profile,
+          recommendedCalories: updatedUser.profile.recommendedCalories,
+          customCalories: updatedUser.profile.customCalories,
+        },
       },
     });
   } catch (err) {
@@ -117,7 +128,7 @@ export const syncUser = async (req, res) => {
 
 export const updateOwnProfile = async (req, res) => {
   const firebaseUid = req.user.firebaseUid;
-  const { age, weight, height, gender } = req.body;
+  const { age, weight, height, gender, displayName, customCalories } = req.body;
 
   try {
     const user = await prisma.user.findUnique({
@@ -128,14 +139,41 @@ export const updateOwnProfile = async (req, res) => {
       return res.status(404).json({ error: 'User tidak ditemukan' });
     }
 
+    // ✅ Update displayName jika dikirim
+    if (displayName) {
+      await prisma.user.update({
+        where: { firebaseUid },
+        data: { displayName },
+      });
+    }
+
+    // ✅ Hitung BMI dan rekomendasi kalori
+    const heightInMeters = height / 100;
+    const bmi = weight / (heightInMeters * heightInMeters);
+    const recommendedCalories = Math.round(24 * weight * 1.55); // Aktivitas moderat
+
+    // ✅ Update profil dan simpan customCalories jika dikirim, jika tidak pakai default
     const updatedProfile = await prisma.profile.update({
       where: { userId: user.id },
-      data: { age, weight, height, gender },
+      data: {
+        age,
+        weight,
+        height,
+        gender,
+        recommendedCalories,
+        customCalories: customCalories || recommendedCalories,
+      },
+    });
+
+    const refreshedUser = await prisma.user.findUnique({
+      where: { firebaseUid },
+      include: { profile: true },
     });
 
     res.json({
-      message: '✅ Profil berhasil diperbarui',
-      profile: updatedProfile,
+      message: 'Profil berhasil diperbarui',
+      displayName: refreshedUser.displayName,
+      profile: refreshedUser.profile,
     });
   } catch (err) {
     console.error('❌ Gagal update profil:', err);

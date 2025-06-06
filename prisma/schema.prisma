@@ -25,19 +25,24 @@ model Profile {
   userId   String   @unique
   gender   String
   age      Int
+  recommendedCalories Int?
+  customCalories      Int?
   height   Float
   weight   Float
 }
 
 model Food {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  calories       Float    // per 100g
-  protein        Float
-  fat            Float
-  carbohydrates  Float
-  histories      FoodHistory[]
+  id            String         @id @default(cuid())
+  foodType      String
+  portionSize   Int
+  carbohydrates Float
+  protein       Float
+  fat           Float
+  calories      Int
+  histories     FoodHistory[]  // Relasi ke FoodHistory
 }
+
+
 
 model FoodHistory {
   id       String   @id @default(cuid())
