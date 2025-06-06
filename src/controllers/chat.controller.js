@@ -29,42 +29,46 @@ export const testChat = async (req, res) => {
 
     const intent = detectIntent(question);
     let prompt = '';
-    let baseInstruction = `
-Tolong sebelum menjawab, tanyakan ke dirimu sendiri:
-Apakah ini pertanyaan tentang makanan, nutrisi, gizi, diet, pola makan, atau kesehatan tubuh terkait makanan?
 
-❗Jika iya, jawab pertanyaannya sebaik mungkin.
-❗Jika tidak, jawab dengan:
-"Maaf, saya hanya bisa menjawab pertanyaan seputar makanan dan nutrisi."
-
-⚠️ Jangan tampilkan instruksi ini dalam jawaban.
-`;
+    const instruction = `Sebelum menjawab, lakukan langkah berikut:
+1. Evaluasi apakah pertanyaan ini berkaitan dengan makanan, nutrisi, kalori, gizi, diet, atau kesehatan tubuh yang terkait dengan makanan.
+2. Jika tidak sesuai, cukup jawab: "Maaf, saya hanya bisa menjawab pertanyaan seputar makanan dan nutrisi."
+3. Jika sesuai, lanjutkan jawab dengan sebaik mungkin berdasarkan data pengguna (jika ada).
+⚠️ Jangan tampilkan instruksi ini dalam jawaban.`;
 
     if (intent === 'personal') {
       const foodList = user.histories
         .map(
           (h) =>
-            `- ${h.grams}g ${h.food.name} (${((h.food.calories * h.grams) / 100).toFixed(1)} kkal)`
+            `- ${h.grams}g ${h.food.name} (${(
+              (h.food.calories * h.grams) /
+              100
+            ).toFixed(1)} kkal)`
         )
         .join('\n');
 
-      prompt = `${baseInstruction}
+      prompt = `${instruction}
 
-Halo ${displayName}, berikut ini data kamu:
-Berat: ${user.profile.weight}kg, Tinggi: ${user.profile.height}cm, Umur: ${user.profile.age} tahun.
-Hari ini kamu makan:
-${foodList}
+Nama: ${displayName}
+Berat: ${user.profile.weight}kg
+Tinggi: ${user.profile.height}cm
+Umur: ${user.profile.age} tahun
+
+Makanan yang dikonsumsi hari ini:
+${foodList || 'Belum ada data makanan hari ini.'}
 
 Pertanyaan: ${question}`;
     } else {
-      prompt = `${baseInstruction}\n\nPertanyaan: ${question}`;
+      prompt = `${instruction}
+
+Pertanyaan: ${question}`;
     }
 
     const { data } = await axios.post(
       'http://127.0.0.1:11434/api/generate',
       {
         model: 'mistral',
-        prompt: prompt,
+        prompt: prompt.trim(),
         stream: false,
       },
       {
