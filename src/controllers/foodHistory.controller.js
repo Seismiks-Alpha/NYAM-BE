@@ -35,8 +35,50 @@ export const postFoodHistory = async (req, res) => {
       },
     });
 
+    // 🔥 TAMBAHKAN POIN
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayPointLog = await prisma.dailyPoint.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: today,
+        },
+        type: 'food_log',
+      },
+    });
+
+    if (!todayPointLog || todayPointLog.count < 2) {
+      const increment = 5;
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          points: { increment },
+        },
+      });
+
+      if (todayPointLog) {
+        await prisma.dailyPoint.update({
+          where: { id: todayPointLog.id },
+          data: {
+            count: { increment: 1 },
+          },
+        });
+      } else {
+        await prisma.dailyPoint.create({
+          data: {
+            userId,
+            date: new Date(),
+            type: 'food_log',
+            count: 1,
+          },
+        });
+      }
+    }
+
     res.status(201).json({
-      message: 'Histori makanan berhasil ditambahkan',
+      message: 'Histori makanan berhasil ditambahkan & poin ditambahkan!',
       data: newHistory,
     });
   } catch (err) {
@@ -63,19 +105,14 @@ export const getDailyNutritionProgress = async (req, res) => {
       prisma.foodHistory.findMany({
         where: {
           userId: id,
-          date: {
-            gte: today,
-          },
+          date: { gte: today },
         },
         include: { food: true },
       }),
       prisma.foodHistory.findMany({
         where: {
           userId: id,
-          date: {
-            gte: yesterday,
-            lt: today,
-          },
+          date: { gte: yesterday, lt: today },
         },
         include: { food: true },
       }),
@@ -89,6 +126,63 @@ export const getDailyNutritionProgress = async (req, res) => {
       return sum + (h.food.calories * h.grams) / 100;
     }, 0);
 
+    const recommended = profile.recommendedCalories;
+    const custom = profile.customCalories;
+
+    const percentOfRecommended = recommended
+      ? Math.min(100, Math.round((totalToday / recommended) * 100))
+      : null;
+    const percentOfCustom = custom
+      ? Math.min(100, Math.round((totalToday / custom) * 100))
+      : null;
+
+    // ✅ Perhitungan poin dari progress kalori
+    const targetCalories = custom ?? recommended;
+    let bonusPoint = 0;
+
+    if (targetCalories && totalToday > 0) {
+      const ratio = totalToday / targetCalories;
+
+      if (ratio >= 0.9 && ratio <= 1.1) {
+        bonusPoint = 20;
+      } else if (ratio >= 0.75 && ratio < 0.9) {
+        bonusPoint = 15;
+      } else if (ratio > 1.1 && ratio <= 1.25) {
+        bonusPoint = 15;
+      } else if (ratio >= 0.5 && ratio < 0.75) {
+        bonusPoint = 10;
+      } else if (ratio > 1.25 && ratio <= 1.5) {
+        bonusPoint = 10;
+      } else {
+        bonusPoint = 5;
+      }
+
+      // ✅ Cek apakah sudah pernah dikasih bonus hari ini
+      const existing = await prisma.dailyPoint.findFirst({
+        where: {
+          userId: id,
+          date: { gte: today },
+          type: 'calorie_goal',
+        },
+      });
+
+      if (!existing) {
+        await prisma.dailyPoint.create({
+          data: {
+            userId: id,
+            type: 'calorie_goal',
+            date: new Date(),
+            count: 1,
+          },
+        });
+
+        await prisma.user.update({
+          where: { id },
+          data: { points: { increment: bonusPoint } },
+        });
+      }
+    }
+
     res.json({
       today: {
         totalCalories: Math.round(totalToday),
@@ -99,20 +193,11 @@ export const getDailyNutritionProgress = async (req, res) => {
         foodHistory: yesterdayHistory,
       },
       progress: {
-        recommended: profile.recommendedCalories,
-        custom: profile.customCalories,
-        percentOfRecommended: profile.recommendedCalories
-          ? Math.min(
-              100,
-              Math.round((totalToday / profile.recommendedCalories) * 100)
-            )
-          : null,
-        percentOfCustom: profile.customCalories
-          ? Math.min(
-              100,
-              Math.round((totalToday / profile.customCalories) * 100)
-            )
-          : null,
+        recommended,
+        custom,
+        percentOfRecommended,
+        percentOfCustom,
+        pointEarnedToday: bonusPoint,
       },
     });
   } catch (err) {

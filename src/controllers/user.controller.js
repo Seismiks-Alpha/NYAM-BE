@@ -180,3 +180,57 @@ export const updateOwnProfile = async (req, res) => {
     res.status(500).json({ error: 'Gagal memperbarui profil' });
   }
 };
+
+export const loginWithEmail = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Cari user berdasarkan email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'Email atau password salah' });
+    }
+
+    // Cek apakah sudah login hari ini
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const lastLogin = user.lastLoginDate;
+    const isSameDay =
+      lastLogin && new Date(lastLogin).getTime() >= today.getTime();
+
+    // Jika belum login hari ini, tambahkan poin +10 dan update lastLoginDate
+    if (!isSameDay) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          points: { increment: 10 },
+          lastLoginDate: new Date(),
+        },
+      });
+    }
+
+    // Ambil data terbaru user setelah update poin
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { profile: true },
+    });
+
+    res.json({
+      message: '✅ Login berhasil',
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        displayName: updatedUser.displayName,
+        points: updatedUser.points,
+        profile: updatedUser.profile,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Gagal login:', err.message);
+    res.status(500).json({ error: 'Gagal login' });
+  }
+};

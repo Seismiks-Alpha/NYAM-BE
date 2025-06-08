@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Nutrisi</title>
+  <style>
+    body {font-family: Arial, sans-serif;margin:0;background:#f7f7f7;padding-bottom:60px;}
+    .container {max-width: 800px;margin: 0 auto;padding: 20px;}
+    h2 {margin-top:0;}
+    input, select, textarea {width:100%;margin:5px 0;padding:8px;box-sizing:border-box;}
+    button {padding:8px 12px;margin:5px 0;}
+    .hidden {display:none;}
+    nav {position: fixed;bottom:0;left:0;right:0;height:60px;background:#fff;display:flex;justify-content:space-around;align-items:center;border-top:1px solid #ccc;}
+    nav button {background:none;border:none;font-size:16px;flex:1;height:100%;}
+    nav button:hover {background:#eee;}
+    @media(min-width:700px){
+      nav{position:static;height:auto;border:0;background:none;justify-content:flex-start;gap:10px;padding-bottom:20px;}
+      body{padding-bottom:0;}
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+<div class="container">
+  <div id="login-view">
+    <h2>Login</h2>
+    <input type="email" id="login-email" placeholder="Email"><br>
+    <input type="password" id="login-pass" placeholder="Password"><br>
+    <button onclick="loginEmail()">Login</button>
+    <p>or</p>
+    <button onclick="googleLogin()">Login with Google</button>
+    <p>No account? <a href="#" onclick="showRegister()">Register</a></p>
+  </div>
+  <div id="register-view" class="hidden">
+    <h2>Register</h2>
+    <input type="email" id="reg-email" placeholder="Email"><br>
+    <input type="password" id="reg-pass" placeholder="Password"><br>
+    <button onclick="registerEmail()">Register</button>
+    <p>or</p>
+    <button onclick="googleLogin()">Login with Google</button>
+    <p>Have an account? <a href="#" onclick="showLogin()">Login</a></p>
+  </div>
+  <div id="app-view" class="hidden">
+    <div id="home-page">
+      <h2>Home</h2>
+      <h3>Leaderboard</h3>
+      <ul id="leaderboard"></ul>
+
+      <h3>Scan Food</h3>
+      <input type="file" id="food-image" accept="image/*"><br>
+      <button onclick="recognizeFood()">Upload</button>
+      <pre id="food-results"></pre>
+      <button id="save-history" class="hidden" onclick="saveFoodHistory()">Save to History</button>
+
+      <h3>Today's Food History</h3>
+      <ul id="food-history"></ul>
+      <button onclick="loadFoodHistory()">Refresh</button>
+    </div>
+    <div id="chat-page" class="hidden">
+      <h2>Chatbot</h2>
+      <textarea id="question" rows="3" style="width:100%" placeholder="Ask..."></textarea><br>
+      <select id="model">
+        <option value="mistral">Mistral</option>
+        <option value="gemini">Gemini</option>
+      </select>
+      <button onclick="askQuestion()">Send</button>
+      <pre id="chat-response"></pre>
+    </div>
+    <div id="profile-page" class="hidden">
+      <h2>Profile</h2>
+      <div id="profile-info"></div>
+      <h3>Update Profile</h3>
+      <input id="age" placeholder="Age"><br>
+      <input id="weight" placeholder="Weight (kg)"><br>
+      <input id="height" placeholder="Height (cm)"><br>
+      <select id="gender">
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+        <option value="unknown">Unknown</option>
+      </select><br>
+      <button onclick="updateProfile()">Update</button>
+
+      <h3>Update Photo URL</h3>
+      <input id="photoUrl" placeholder="https://..."><br>
+      <button onclick="updatePhoto()">Change Photo</button>
+      <p><button onclick="logout()">Logout</button></p>
+    </div>
+  </div>
+</div>
+<nav id="nav" class="hidden">
+  <button onclick="showPage('home')">Home</button>
+  <button onclick="showPage('chat')">Chatbot</button>
+  <button onclick="showPage('profile')">Profile</button>
+</nav>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCdiK11NWJQYMWInggskQE6w1l03Qgwjfs",
+    authDomain: "seismiks-nyam.firebaseapp.com",
+    projectId: "seismiks-nyam",
+    storageBucket: "seismiks-nyam.firebasestorage.app",
+    messagingSenderId: "562855494147",
+    appId: "1:562855494147:web:a30ff7d67e8b09a7ed4436"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  let idToken = "";
+  let recognized = null;
+
+  auth.onAuthStateChanged(async user => {
+    if(user){
+      idToken = await user.getIdToken();
+      await syncUser();
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('register-view').classList.add('hidden');
+      document.getElementById('app-view').classList.remove('hidden');
+      document.getElementById('nav').classList.remove('hidden');
+      showPage('home');
+      loadProfile();
+      loadLeaderboard();
+      loadFoodHistory();
+    }else{
+      showLogin();
+    }
+  });
+
+  function showLogin(){
+    document.getElementById('login-view').classList.remove('hidden');
+    document.getElementById('register-view').classList.add('hidden');
+    document.getElementById('app-view').classList.add('hidden');
+    document.getElementById('nav').classList.add('hidden');
+  }
+  function showRegister(){
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('register-view').classList.remove('hidden');
+  }
+
+  async function loginEmail(){
+    const email=document.getElementById('login-email').value;
+    const pass=document.getElementById('login-pass').value;
+    try{await auth.signInWithEmailAndPassword(email,pass);}catch(e){alert(e.message);}
+  }
+  async function registerEmail(){
+    const email=document.getElementById('reg-email').value;
+    const pass=document.getElementById('reg-pass').value;
+    try{await auth.createUserWithEmailAndPassword(email,pass);}catch(e){alert(e.message);}
+  }
+  async function googleLogin(){
+    const provider=new firebase.auth.GoogleAuthProvider();
+    try{await auth.signInWithPopup(provider);}catch(e){alert(e.message);}
+  }
+  async function logout(){await auth.signOut();}
+
+  function showPage(page){
+    document.getElementById('home-page').classList.add('hidden');
+    document.getElementById('chat-page').classList.add('hidden');
+    document.getElementById('profile-page').classList.add('hidden');
+    if(page==='home') document.getElementById('home-page').classList.remove('hidden');
+    if(page==='chat') document.getElementById('chat-page').classList.remove('hidden');
+    if(page==='profile') document.getElementById('profile-page').classList.remove('hidden');
+  }
+
+  async function syncUser(){
+    await fetch('https://api.seix.me/api/auth/sync',{method:'POST',headers:{'Authorization':'Bearer '+idToken}});
+  }
+
+  async function loadProfile(){
+    const res=await fetch('https://api.seix.me/api/profile',{headers:{'Authorization':'Bearer '+idToken}});
+    if(res.ok){
+      const data=await res.json();
+      document.getElementById('profile-info').innerText=JSON.stringify(data,null,2);
+    }
+  }
+  async function updateProfile(){
+    const body={
+      age:parseInt(document.getElementById('age').value),
+      weight:parseInt(document.getElementById('weight').value),
+      height:parseInt(document.getElementById('height').value),
+      gender:document.getElementById('gender').value
+    };
+    await fetch('https://api.seix.me/api/profile',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},body:JSON.stringify(body)});
+    loadProfile();
+  }
+  async function askQuestion(){
+    const q=document.getElementById('question').value;
+    const model=document.getElementById('model').value;
+    const endpoint=model==='gemini'? 'https://api.seix.me/chat/gemini' : 'https://api.seix.me/chat';
+    const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+idToken},body:JSON.stringify({question:q})});
+    const data=await res.json();
+    document.getElementById('chat-response').innerText=data.response||JSON.stringify(data);
+  }
+  async function loadLeaderboard(){
+    const res=await fetch('https://api.seix.me/api/leaderboard',{headers:{'Authorization':'Bearer '+idToken}});
+    if(res.ok){
+      const data=await res.json();
+      const list=document.getElementById('leaderboard');
+      list.innerHTML='';
+      data.forEach(item=>{
+        const li=document.createElement('li');
+        li.innerText=item.name+': '+item.score;
+        list.appendChild(li);
+      });
+    }
+  }
+
+  async function loadFoodHistory(){
+    const res=await fetch('https://api.seix.me/api/food-history/today',{headers:{'Authorization':'Bearer '+idToken}});
+    if(res.ok){
+      const data=await res.json();
+      const list=document.getElementById('food-history');
+      list.innerHTML='';
+      data.forEach(item=>{
+        const li=document.createElement('li');
+        li.innerText=item.name+' - '+item.grams+'g';
+        list.appendChild(li);
+      });
+    }
+  }
+
+  async function recognizeFood(){
+    const file=document.getElementById('food-image').files[0];
+    if(!file)return;
+    const fd=new FormData();
+    fd.append('image',file);
+    const res=await fetch('https://api.seix.me/api/recognize',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+idToken},
+      body:fd
+    });
+    if(res.ok){
+      const data=await res.json();
+      document.getElementById('food-results').innerText=JSON.stringify(data,null,2);
+      recognized=data.results;
+      document.getElementById('save-history').classList.remove('hidden');
+    }else{
+      document.getElementById('food-results').innerText='Upload failed';
+    }
+  }
+
+  async function saveFoodHistory(){
+    if(!recognized)return;
+    await fetch('https://api.seix.me/api/food-history',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+idToken,'Content-Type':'application/json'},
+      body:JSON.stringify(recognized)
+    });
+    document.getElementById('save-history').classList.add('hidden');
+    loadFoodHistory();
+  }
+
+  async function updatePhoto(){
+    const url=document.getElementById('photoUrl').value;
+    if(!url)return;
+    await fetch('https://api.seix.me/api/photo',{
+      method:'PUT',
+      headers:{'Authorization':'Bearer '+idToken,'Content-Type':'application/json'},
+      body:JSON.stringify({photoUrl:url})
+    });
+    loadProfile();
+  }
+</script>
+</body>
+</html>

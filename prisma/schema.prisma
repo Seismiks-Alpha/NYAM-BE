@@ -16,6 +16,9 @@ model User {
   photoUrl    String?  // ✅ harus ada ini
   profile     Profile?
   histories   FoodHistory[]
+  points         Int       @default(0)
+  lastLoginDate  DateTime?
+  dailyPoints    DailyPoint[]   // ✅ relasi balik ke DailyPoint
 }
 
 
@@ -52,4 +55,13 @@ model FoodHistory {
   foodId   String
   date     DateTime
   grams    Float
+}
+
+model DailyPoint {
+  id     String   @id @default(cuid())
+  user   User     @relation(fields: [userId], references: [id])
+  userId String
+  type   String   // contoh: "food_log", "login", "calorie_goal"
+  date   DateTime
+  count  Int      // berapa kali dilakukan dalam 1 hari
 }

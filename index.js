@@ -7,6 +7,7 @@ import testRoutes from './src/routes/chat.routes.js';
 import userRoutes from './src/routes/user.routes.js';
 import recognitionRoutes from './src/routes/recognition.routes.js';
 import foodHistoryRoutes from './src/routes/foodHistory.routes.js'; // ✅ sudah benar
+import leaderboardRoutes from './src/routes/leaderboard.routes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -27,7 +28,13 @@ app.use(express.json());
 
 // Routes
 // app.use('/chat', chatRoutes)
-app.use('/api', userRoutes, recognitionRoutes, foodHistoryRoutes); // ✅ tambahkan ini
+app.use(
+  '/api',
+  userRoutes,
+  recognitionRoutes,
+  foodHistoryRoutes,
+  leaderboardRoutes
+); //
 app.use('/chat', testRoutes);
 app.use('/users', userRoutes);
 

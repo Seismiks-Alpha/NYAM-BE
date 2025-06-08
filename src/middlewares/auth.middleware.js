@@ -29,6 +29,8 @@ export const authenticate = async (req, res, next) => {
           firebaseUid: uid,
           displayName: name || email.split('@')[0],
           photoUrl: picture || null,
+          points: 10, // login pertama
+          lastLoginDate: new Date(),
           profile: {
             create: {
               weight: 60,
@@ -41,6 +43,24 @@ export const authenticate = async (req, res, next) => {
         include: { profile: true },
       });
     } else {
+      // ✅ Tambahkan poin +10 jika belum login hari ini
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const lastLogin = user.lastLoginDate;
+
+      const isSameDay =
+        lastLogin && new Date(lastLogin).getTime() >= today.getTime();
+
+      if (!isSameDay) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            points: { increment: 10 },
+            lastLoginDate: new Date(),
+          },
+        });
+      }
+
       // ✅ Jika user sudah ada → update photoUrl dari Google/Firebase
       user = await prisma.user.update({
         where: { id: user.id },
