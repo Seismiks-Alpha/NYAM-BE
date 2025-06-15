@@ -1,71 +1,59 @@
-// src/controllers/recognition.controller.js
-import fs from 'fs';
+import { exec } from 'child_process';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
-export const recognizeFood = async (req, res) => {
-  const image = req.file;
+export const uploadAndAnalyzeImage = async (req, res) => {
   const userId = req.user.id;
+  const imagePath = req.file.path;
+  const fileName = req.file.filename;
 
-  if (!image) return res.status(400).json({ error: 'Gambar tidak ditemukan' });
+  const pyPath = path.join('model', 'analyze_image.py');
+  const command = `python ${pyPath} ${fileName}`;
 
-  try {
-    // 🔁 Dummy hasil dari model
-    const predictions = [
-      { food: 'nasi goreng', weight: 180 },
-      { food: 'telur dadar', weight: 65 },
-    ];
-
-    const results = [];
-
-    for (const item of predictions) {
-      const foodItem = await prisma.food.findFirst({
-        where: { name: item.food.toLowerCase() },
-      });
-
-      if (!foodItem) {
-        results.push({ food: item.food, error: 'Tidak ditemukan di database' });
-        continue;
-      }
-
-      // Hitung nutrisi berdasarkan berat
-      const totalCalories = (foodItem.calories * item.weight) / 100;
-      const totalProtein = (foodItem.protein * item.weight) / 100;
-      const totalFat = (foodItem.fat * item.weight) / 100;
-      const totalCarbs = (foodItem.carbohydrates * item.weight) / 100;
-
-      // Simpan ke foodHistory
-      await prisma.foodHistory.create({
-        data: {
-          userId,
-          foodId: foodItem.id,
-          grams: item.weight,
-          date: new Date(),
-        },
-      });
-
-      results.push({
-        food: item.food,
-        weight: item.weight,
-        nutrition: {
-          calories: totalCalories,
-          protein: totalProtein,
-          fat: totalFat,
-          carbohydrates: totalCarbs,
-        },
-      });
+  exec(command, async (error, stdout, stderr) => {
+    if (error) {
+      console.error(`❌ Python Error: ${error.message}`);
+      return res.status(500).json({ error: 'Python gagal dijalankan' });
     }
 
-    // Hapus file upload
-    fs.unlink(path.resolve(image.path), () => {});
+    try {
+      const parsed = JSON.parse(stdout.trim());
+      const output = typeof parsed.stdout === 'string'
+        ? JSON.parse(parsed.stdout)
+        : parsed;
 
-    res.json({
-      message: '✅ Makanan berhasil diproses',
-      items: results,
-    });
-  } catch (err) {
-    console.error('❌ Gagal proses makanan:', err);
-    res.status(500).json({ error: 'Gagal proses makanan' });
-  }
+      if (output.error || !Array.isArray(output.results)) {
+        return res.status(400).json({ error: 'Format hasil tidak valid' });
+      }
+
+      // ✅ Simpan ke FoodHistory
+      const entries = await Promise.all(
+        output.results.map((item) =>
+          prisma.foodHistory.create({
+            data: {
+              userId,
+              grams: item.grams,
+              foodType: item.foodName, // ✅ gunain foodName dari hasil Python
+              carbohydrates: item.carbohydrates,
+              protein: item.protein,
+              fat: item.fat,
+              calories: item.calories,
+              date: new Date(),
+              imageUrl: `/uploads/${fileName}`,
+            },
+          })
+        )
+      );
+
+      res.json({
+        message: 'Analisis dan simpan data berhasil',
+        data: entries,
+      });
+    } catch (e) {
+      console.error('❌ Gagal parse hasil Python:', e.message);
+      res.status(500).json({ error: 'Gagal memproses hasil analisis gambar' });
+    }
+  });
 };

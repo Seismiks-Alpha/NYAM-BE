@@ -19,6 +19,7 @@ model User {
   points         Int       @default(0)
   lastLoginDate  DateTime?
   dailyPoints    DailyPoint[]   // ✅ relasi balik ke DailyPoint
+
 }
 
 
@@ -34,28 +35,25 @@ model Profile {
   weight   Float
 }
 
-model Food {
-  id            String         @id @default(cuid())
-  foodType      String
-  portionSize   Int
-  carbohydrates Float
-  protein       Float
-  fat           Float
-  calories      Int
-  histories     FoodHistory[]  // Relasi ke FoodHistory
-}
+
 
 
 
 model FoodHistory {
-  id       String   @id @default(cuid())
-  user     User     @relation(fields: [userId], references: [id])
-  userId   String
-  food     Food     @relation(fields: [foodId], references: [id])
-  foodId   String
-  date     DateTime
-  grams    Float
+  id            String   @id @default(cuid())
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String
+  date          DateTime
+  grams         Float
+  foodType      String   // ✅ Nama makanan langsung
+  carbohydrates Float
+  protein       Float
+  fat           Float
+  calories      Int
+  imageUrl      String?  // ✅ Gambar hasil upload
 }
+
+
 
 model DailyPoint {
   id     String   @id @default(cuid())

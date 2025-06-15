@@ -1,12 +1,21 @@
-// src/routes/recognition.routes.js
 import express from 'express';
 import multer from 'multer';
-import { recognizeFood } from '../controllers/recognition.controller.js';
-import { authenticate } from '../middlewares/auth.middleware.js';
+import { uploadAndAnalyzeImage } from '../controllers/recognition.controller.js';
+import { authenticate } from '../../src/middlewares/auth.middleware.js';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
 
-router.post('/recognize', authenticate, upload.single('image'), recognizeFood);
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  }
+});
+const upload = multer({ storage });
+
+router.post('/upload', authenticate, upload.single('image'), uploadAndAnalyzeImage);
 
 export default router;
